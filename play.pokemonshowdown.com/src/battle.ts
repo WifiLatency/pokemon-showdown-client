@@ -3630,6 +3630,40 @@ export class Battle {
 			this.scene.teamPreview();
 			break;
 		}
+		case 'reveal': {
+			const { name, siden, slot, pokemonid } = this.parsePokemonId(args[1]);
+			let pokemon = this.getPokemon(args[1])!; // The Pokemon has been on the field
+
+			if (pokemon === null) {
+				const side = this.sides[siden];
+				for (let i = 0; i < side.pokemon.length; i++) {
+					const currPokemon = side.pokemon[i];
+					if (currPokemon.details === args[2] || currPokemon.checkDetails(args[2])) {
+						// The Pokemon was revealed by team preview but not yet used.
+						// In battles without species clause this causes issues with illusion tooltips
+						pokemon = currPokemon;
+						pokemon.ident = pokemonid;
+						break;
+					}
+				}
+
+				// There was no team preview and the Pokemon was unrevealed.
+				if (pokemon === null) pokemon = this.sides[siden].addPokemon(name, pokemonid, args[2])
+			}
+
+			pokemon.details = args[2];
+			pokemon.item = args[4];
+			pokemon.rememberAbility(args[5]);
+			pokemon.teraType = (args[6]);
+			for (const move of args[7].split(',')) {
+				pokemon.rememberMove(move, 0);
+			}
+			break;
+		}
+		case 'teamreveal': {
+			this.scene.updateSidebars();
+			break;
+		}
 		case 'showteam': {
 			const team = Teams.unpack(args[2]);
 			if (!team.length) return;
