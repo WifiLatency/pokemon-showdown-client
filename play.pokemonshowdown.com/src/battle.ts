@@ -1095,6 +1095,7 @@ export class Battle {
 	gen = 8;
 	dex: ModdedDex = Dex;
 	teamPreviewCount = 0;
+	teamRevealUsedSlots: { [sideid: string]: number[] } = {};
 	speciesClause = false;
 	tier = '';
 	gameType: 'singles' | 'doubles' | 'triples' | 'multi' | 'freeforall' = 'singles';
@@ -3630,38 +3631,50 @@ export class Battle {
 			this.scene.teamPreview();
 			break;
 		}
-		case 'reveal': {
-			const { name, siden, slot, pokemonid } = this.parsePokemonId(args[1]);
-			let pokemon = this.getPokemon(args[1])!; // The Pokemon has been on the field
-
-			if (pokemon === null) {
-				const side = this.sides[siden];
+		case 'teamreveal': {
+			for (const side of this.sides) {
+				this.teamRevealUsedSlots[side.n] = [];
 				for (let i = 0; i < side.pokemon.length; i++) {
-					const currPokemon = side.pokemon[i];
-					if (currPokemon.details === args[2] || currPokemon.checkDetails(args[2])) {
-						// The Pokemon was revealed by team preview but not yet used.
-						// In battles without species clause this causes issues with illusion tooltips
-						pokemon = currPokemon;
-						pokemon.ident = pokemonid;
-						break;
-					}
+					if (side.pokemon[i].isActive()) this.teamRevealUsedSlots[side.n].push(i);
 				}
-
-				// There was no team preview and the Pokemon was unrevealed.
-				if (pokemon === null) pokemon = this.sides[siden].addPokemon(name, pokemonid, args[2])
-			}
-
-			pokemon.details = args[2];
-			pokemon.item = args[4];
-			pokemon.rememberAbility(args[5]);
-			pokemon.teraType = (args[6]);
-			for (const move of args[7].split(',')) {
-				pokemon.rememberMove(move, 0);
 			}
 			break;
 		}
-		case 'teamreveal': {
-			this.scene.updateSidebars();
+		case 'reveal': {
+			const { name, siden, slot, pokemonid } = this.parsePokemonId(args[1]);
+			const data = this.parseDetails(name, pokemonid, args[2]);
+			const fainted = args[3].includes('fnt');
+			let pokemon = slot >= 0 ? this.getPokemon(args[1], fainted) : null;
+
+			if (pokemon === null) {
+				for (let i = 0; i < this.sides[siden].pokemon.length; i++) {
+					let currPokemon = this.sides[siden].pokemon[i];
+					if (this.teamRevealUsedSlots[siden].includes(i)) continue;
+					if ((fainted && currPokemon.hp) || (!fainted && !currPokemon.hp)) continue;
+					if (currPokemon.checkDetails(args[2])) {
+						pokemon = currPokemon;
+						this.teamRevealUsedSlots[siden].push(i);
+						break;
+					}
+				}
+			}
+			// Unrevealed with no team preview
+			if (pokemon === null)  pokemon = this.sides[siden].addPokemon(name, pokemonid, args[2]);
+
+			pokemon.ident = pokemonid;
+			pokemon.name = data.name;
+			pokemon.details = data.details;
+			pokemon.searchid = data.searchid;
+			pokemon.speciesForme = data.speciesForme;
+			pokemon.shiny = data.shiny;
+			pokemon.terastallized = data.terastallized;
+			pokemon.healthParse(args[3]);
+			pokemon.item = args[4];
+			pokemon.rememberAbility(args[5]);
+			pokemon.teraType = args[6];
+			for (const move of args[7].split(',')) {
+				pokemon.rememberMove(move, 0);
+			}
 			break;
 		}
 		case 'showteam': {
